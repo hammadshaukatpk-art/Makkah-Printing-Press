@@ -1,0 +1,47 @@
+name: Android APK Build
+on:
+  push:
+    branches: [main, feature/android-webview-app]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Create branded icons from official website logo
+        run: |
+          python3 -m pip install --break-system-packages Pillow
+          mkdir -p app/src/main/res/drawable
+          curl -fL --retry 3 'https://www.makkahprintingpress.com/wp-content/uploads/2026/07/cropped-cropped-519418393_122238728378188397_9220840395751945071_n-1-120x106.jpg' -o /tmp/makkah-logo.jpg
+          python3 - <<'PY'
+          from PIL import Image, ImageOps
+          import os
+          logo = Image.open('/tmp/makkah-logo.jpg').convert('RGBA')
+          for dpi,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
+              folder = 'app/src/main/res/mipmap-'+dpi
+              os.makedirs(folder,exist_ok=True)
+              canvas=Image.new('RGBA',(size,size),'white')
+              img=ImageOps.contain(logo,(int(size*.94),int(size*.94)),Image.Resampling.LANCZOS)
+              canvas.alpha_composite(img,((size-img.width)//2,(size-img.height)//2))
+              canvas.save(folder+'/ic_launcher.png')
+          logo.save('app/src/main/res/drawable/brand_logo.png')
+          PY
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Makkah-Printing-Press-APK
+          path: app/build/outputs/apk/debug/app-debug.apk

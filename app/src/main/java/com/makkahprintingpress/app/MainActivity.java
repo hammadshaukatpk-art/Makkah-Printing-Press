@@ -1,0 +1,276 @@
+package com.makkahprintingpress.app;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.ActivityNotFoundException;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+import android.webkit.ValueCallback;
+import java.util.Locale;
+
+public class MainActivity extends Activity {
+    private static final String HOME = "https://www.makkahprintingpress.com/";
+    private static final int GOLD = Color.rgb(204, 159, 26);
+    private static final int FILE_PICKER = 901;
+    private WebView browser;
+    private FrameLayout root;
+    private FrameLayout splash;
+    private FrameLayout errorPanel;
+    private ProgressBar progress;
+    private ValueCallback<Uri[]> pendingFiles;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + .5f);
+    }
+    private GradientDrawable background(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radius));
+        return d;
+    }
+    private TextView label(String text, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        t.setGravity(Gravity.CENTER);
+        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        return t;
+    }
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        getWindow().setStatusBarColor(Color.WHITE);
+        getWindow().setNavigationBarColor(Color.WHITE);
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Color.WHITE);
+        setContentView(root);
+        createBrowser();
+        createSplash();
+        if (state == null) browser.loadUrl(HOME);
+        else if (browser.restoreState(state) == null) browser.loadUrl(HOME);
+        handler.postDelayed(this::hideSplash, 1600);
+    }
+    private void createBrowser() {
+        browser = new WebView(this);
+        browser.setBackgroundColor(Color.WHITE);
+        browser.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        root.addView(browser, new FrameLayout.LayoutParams(-1, -1));
+        WebSettings settings = browser.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setSupportMultipleWindows(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(true);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
+        browser.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (!request.isForMainFrame()) return false;
+                return handleUrl(request.getUrl().toString());
+            }
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) showError();
+            }
+            @Override public void onPageFinished(WebView view, String url) {
+                if (progress != null) progress.setVisibility(View.GONE);
+                hideError();
+            }
+        });
+        browser.setWebChromeClient(new WebChromeClient() {
+            @Override public void onProgressChanged(WebView view, int value) {
+                if (progress != null) {
+                    progress.setProgress(value);
+                    progress.setVisibility(value == 100 ? View.GONE : View.VISIBLE);
+                }
+            }
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (pendingFiles != null) pendingFiles.onReceiveValue(null);
+                pendingFiles = callback;
+                try {
+                    startActivityForResult(params.createIntent(), FILE_PICKER);
+                    return true;
+                } catch (Exception e) {
+                    pendingFiles = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+            }
+        });
+        browser.setDownloadListener((url, agent, disposition, type, length) -> openOutside(url));
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setMax(100);
+        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
+        root.addView(progress, new FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP));
+    }
+    private boolean handleUrl(String value) {
+        Uri uri = Uri.parse(value);
+        String scheme = uri.getScheme();
+        if (scheme == null) return false;
+        scheme = scheme.toLowerCase(Locale.ROOT);
+        if (scheme.equals("https")) return false;
+        if (scheme.equals("http")) { openOutside(value); return true; }
+        if (scheme.equals("about") || scheme.equals("blob") || scheme.equals("data")) return false;
+        try {
+            if (scheme.equals("intent")) {
+                Intent intent = Intent.parseUri(value, Intent.URI_INTENT_SCHEME);
+                if (intent.resolveActivity(getPackageManager()) != null) startActivity(intent);
+                else {
+                    String fallback = intent.getStringExtra("browser_fallback_url");
+                    if (fallback != null && fallback.startsWith("https://")) browser.loadUrl(fallback);
+                }
+            } else {
+                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "No application available to open this link", Toast.LENGTH_SHORT).show();
+        }
+        return true;
+    }
+    private void openOutside(String url) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (Exception e) { Toast.makeText(this, "Unable to open link", Toast.LENGTH_SHORT).show(); }
+    }
+    private void createSplash() {
+        splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.WHITE);
+        LinearLayout stack = new LinearLayout(this);
+        stack.setOrientation(LinearLayout.VERTICAL);
+        stack.setGravity(Gravity.CENTER);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.brand_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        stack.addView(logo, new LinearLayout.LayoutParams(dp(205), dp(205)));
+        TextView welcome = label("Welcome to", 22, Color.DKGRAY, false);
+        LinearLayout.LayoutParams a = new LinearLayout.LayoutParams(-1, -2);
+        a.topMargin = dp(18);
+        stack.addView(welcome, a);
+        TextView title = label("Makkah Printing Press", 25, Color.BLACK, true);
+        LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(-1, -2);
+        b.topMargin = dp(7);
+        stack.addView(title, b);
+        View line = new View(this);
+        line.setBackground(background(GOLD, 4));
+        LinearLayout.LayoutParams c = new LinearLayout.LayoutParams(dp(96), dp(4));
+        c.gravity = Gravity.CENTER;
+        c.topMargin = dp(22);
+        stack.addView(line, c);
+        FrameLayout.LayoutParams center = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER);
+        center.leftMargin = dp(20);
+        center.rightMargin = dp(20);
+        splash.addView(stack, center);
+        root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+    }
+    private void hideSplash() {
+        if (splash == null) return;
+        FrameLayout s = splash;
+        splash = null;
+        s.animate().alpha(0f).setDuration(200).withEndAction(() -> root.removeView(s)).start();
+    }
+    private void showError() {
+        if (errorPanel != null) return;
+        errorPanel = new FrameLayout(this);
+        errorPanel.setBackgroundColor(Color.WHITE);
+        LinearLayout stack = new LinearLayout(this);
+        stack.setGravity(Gravity.CENTER);
+        stack.setOrientation(LinearLayout.VERTICAL);
+        stack.addView(label("Connection unavailable", 23, Color.BLACK, true));
+        TextView detail = label("Please check your internet connection and try again.", 15, Color.DKGRAY, false);
+        LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(-1, -2);
+        d.topMargin = dp(12);
+        stack.addView(detail, d);
+        Button retry = new Button(this);
+        retry.setText("Retry");
+        retry.setAllCaps(false);
+        retry.setTextColor(Color.BLACK);
+        retry.setBackground(background(GOLD, 12));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(170), dp(52));
+        p.gravity = Gravity.CENTER;
+        p.topMargin = dp(24);
+        stack.addView(retry, p);
+        retry.setOnClickListener(v -> { hideError(); browser.reload(); });
+        FrameLayout.LayoutParams center = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER);
+        center.leftMargin = dp(24);
+        center.rightMargin = dp(24);
+        errorPanel.addView(stack, center);
+        root.addView(errorPanel, new FrameLayout.LayoutParams(-1, -1));
+        errorPanel.bringToFront();
+    }
+    private void hideError() {
+        if (errorPanel != null) {
+            root.removeView(errorPanel);
+            errorPanel = null;
+        }
+    }
+    private boolean atHome() {
+        String current = browser.getUrl();
+        if (current == null) return true;
+        Uri u = Uri.parse(current);
+        String host = u.getHost();
+        String path = u.getPath();
+        return host != null &&
+            (host.equalsIgnoreCase("makkahprintingpress.com") || host.equalsIgnoreCase("www.makkahprintingpress.com")) &&
+            (path == null || path.equals("/")) && u.getQuery() == null;
+    }
+    @Override public void onBackPressed() {
+        if (errorPanel != null) { hideError(); if (browser.canGoBack()) browser.goBack(); else showExit(); return; }
+        if (browser.canGoBack() && !atHome()) browser.goBack();
+        else showExit();
+    }
+    private void showExit() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Exit Makkah Printing Press?")
+            .setMessage("Are you sure you want to close the app?")
+            .setNegativeButton("No", (d, which) -> d.dismiss())
+            .setPositiveButton("Exit", (d, which) -> finish())
+            .create();
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GOLD);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.BLACK);
+        });
+        dialog.show();
+    }
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == FILE_PICKER && pendingFiles != null) {
+            pendingFiles.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
+            pendingFiles = null;
+        }
+    }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if (browser != null) browser.saveState(state);
+    }
+    @Override protected void onDestroy() {
+        if (browser != null) { browser.stopLoading(); browser.destroy(); browser = null; }
+        super.onDestroy();
+    }
+}
