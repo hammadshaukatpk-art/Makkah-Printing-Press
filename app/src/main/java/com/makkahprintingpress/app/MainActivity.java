@@ -21,6 +21,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceResponse;
+import java.io.IOException;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -82,6 +84,9 @@ public class MainActivity extends Activity {
         root.addView(browser, new FrameLayout.LayoutParams(-1, -1));
         WebSettings settings = browser.getSettings();
         settings.setJavaScriptEnabled(true);
+        settings.setTextZoom(100);
+        String agent = settings.getUserAgentString();
+        settings.setUserAgentString(agent.replace("; wv", "").replace("Version/4.0 ", ""));
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setLoadsImagesAutomatically(true);
@@ -98,6 +103,14 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
         browser.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if ("www.makkahprintingpress.com".equalsIgnoreCase(uri.getHost()) && "/__mppapp__/hero-banner.png".equals(uri.getPath())) {
+                    try { return new WebResourceResponse("image/png", null, getAssets().open("hero-banner.png")); }
+                    catch (IOException e) { return null; }
+                }
+                return null;
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (!request.isForMainFrame()) return false;
                 return handleUrl(request.getUrl().toString());
@@ -110,6 +123,7 @@ public class MainActivity extends Activity {
                 hideError();
                 view.postDelayed(() -> refreshVisibleImages(), 350);
                 view.postDelayed(() -> refreshVisibleImages(), 1600);
+                view.postDelayed(() -> refreshVisibleImages(), 3200);
             }
         });
         browser.setWebChromeClient(new WebChromeClient() {
@@ -138,17 +152,25 @@ public class MainActivity extends Activity {
         progress.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
         root.addView(progress, new FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP));
     }
-    // Helps WordPress lazy-loaded hero banners initialize inside Android WebView.
+    // The WordPress homepage emits an HTTP URL for the hero image on an HTTPS page.
+    // Serve the original banner locally so mixed-content blocking cannot break it.
     private void refreshVisibleImages() {
         if (browser == null) return;
         String js = "(function(){try{" +
+            "var isHome=/^(www\\\\.)?makkahprintingpress\\\\.com$/.test(location.hostname)&&location.pathname==='/';" +
             "document.querySelectorAll('img').forEach(function(img){" +
-            "if(!img.getAttribute('src') && img.dataset.src){img.src=img.dataset.src;}" +
-            "if(!img.getAttribute('srcset') && img.dataset.srcset){img.srcset=img.dataset.srcset;}" +
-            "if(img.loading==='lazy'){img.loading='eager';}" +
-            "});" +
-            "document.querySelectorAll('source[data-srcset]').forEach(function(el){" +
-            "if(!el.srcset){el.srcset=el.dataset.srcset;}" +
+            "if(isHome){" +
+            "var info=((img.getAttribute('alt')||'')+' '+(img.getAttribute('src')||'')+' '+(img.getAttribute('data-src')||'')).toLowerCase();" +
+            "if(info.indexOf('chatgpt-image-sep-9-2026')>=0||info.indexOf('chatgpt image sep 9')>=0){" +
+            "if(img.parentElement&&img.parentElement.tagName==='PICTURE'){img.parentElement.querySelectorAll('source').forEach(function(s){s.removeAttribute('srcset');s.removeAttribute('data-srcset');});}" +
+            "img.removeAttribute('srcset');img.removeAttribute('sizes');img.removeAttribute('data-srcset');" +
+            "img.loading='eager';img.decoding='async';" +
+            "if(img.getAttribute('src')!=='https://www.makkahprintingpress.com/__mppapp__/hero-banner.png')img.setAttribute('src','https://www.makkahprintingpress.com/__mppapp__/hero-banner.png');" +
+            "img.style.maxWidth='100%';img.style.width='100%';img.style.height='auto';img.style.display='block';" +
+            "return;" +
+            "}}" +
+            "if(!img.getAttribute('src')&&img.dataset.src){img.src=img.dataset.src;}" +
+            "if(!img.getAttribute('srcset')&&img.dataset.srcset){img.srcset=img.dataset.srcset;}" +
             "});" +
             "window.dispatchEvent(new Event('resize'));" +
             "}catch(e){}})();";
