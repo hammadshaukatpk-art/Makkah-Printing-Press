@@ -1,7 +1,7 @@
 name: Android APK Build
 on:
   push:
-    branches: [main, feature/android-webview-app]
+    branches: [main, feature/android-webview-app, feature/mpp-admin]
   workflow_dispatch:
 jobs:
   build:
@@ -62,5 +62,5 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Makkah-Printing-Press-APK
+          name: MPP-Admin-APK
           path: app/build/outputs/apk/debug/app-debug.apk
