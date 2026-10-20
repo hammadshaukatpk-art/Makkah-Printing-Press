@@ -78,18 +78,23 @@ public class MainActivity extends Activity {
         browser = new WebView(this);
         browser.setBackgroundColor(Color.WHITE);
         browser.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        browser.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         root.addView(browser, new FrameLayout.LayoutParams(-1, -1));
         WebSettings settings = browser.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        settings.setLoadsImagesAutomatically(true);
+        settings.setBlockNetworkImage(false);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setSupportMultipleWindows(false);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
         browser.setWebViewClient(new WebViewClient() {
@@ -103,6 +108,8 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 if (progress != null) progress.setVisibility(View.GONE);
                 hideError();
+                view.postDelayed(() -> refreshVisibleImages(), 350);
+                view.postDelayed(() -> refreshVisibleImages(), 1600);
             }
         });
         browser.setWebChromeClient(new WebChromeClient() {
@@ -130,6 +137,22 @@ public class MainActivity extends Activity {
         progress.setMax(100);
         progress.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
         root.addView(progress, new FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP));
+    }
+    // Helps WordPress lazy-loaded hero banners initialize inside Android WebView.
+    private void refreshVisibleImages() {
+        if (browser == null) return;
+        String js = "(function(){try{" +
+            "document.querySelectorAll('img').forEach(function(img){" +
+            "if(!img.getAttribute('src') && img.dataset.src){img.src=img.dataset.src;}" +
+            "if(!img.getAttribute('srcset') && img.dataset.srcset){img.srcset=img.dataset.srcset;}" +
+            "if(img.loading==='lazy'){img.loading='eager';}" +
+            "});" +
+            "document.querySelectorAll('source[data-srcset]').forEach(function(el){" +
+            "if(!el.srcset){el.srcset=el.dataset.srcset;}" +
+            "});" +
+            "window.dispatchEvent(new Event('resize'));" +
+            "}catch(e){}})();";
+        browser.evaluateJavascript(js, null);
     }
     private boolean handleUrl(String value) {
         Uri uri = Uri.parse(value);
