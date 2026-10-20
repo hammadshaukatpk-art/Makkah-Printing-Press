@@ -23,6 +23,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebResourceResponse;
 import java.io.IOException;
+import java.io.InputStream;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -105,6 +106,10 @@ public class MainActivity extends Activity {
         browser.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                if (("www.makkahprintingpress.com".equalsIgnoreCase(uri.getHost()) || "makkahprintingpress.com".equalsIgnoreCase(uri.getHost())) && "/__mppapp__/admin-logo.png".equals(uri.getPath())) {
+                    InputStream logo = getResources().openRawResource(R.drawable.brand_logo);
+                    return new WebResourceResponse("image/png", null, logo);
+                }
                 if ("www.makkahprintingpress.com".equalsIgnoreCase(uri.getHost()) && "/__mppapp__/hero-banner.png".equals(uri.getPath())) {
                     try { return new WebResourceResponse("image/png", null, getAssets().open("hero-banner.png")); }
                     catch (IOException e) { return null; }
@@ -121,6 +126,11 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 if (progress != null) progress.setVisibility(View.GONE);
                 hideError();
+                if (isWordPressLoginPage(url)) {
+                    showAdminLoginLogo();
+                    view.postDelayed(() -> showAdminLoginLogo(), 350);
+                    view.postDelayed(() -> showAdminLoginLogo(), 1200);
+                }
                 view.postDelayed(() -> refreshVisibleImages(), 350);
                 view.postDelayed(() -> refreshVisibleImages(), 1600);
                 view.postDelayed(() -> refreshVisibleImages(), 3200);
@@ -154,6 +164,42 @@ public class MainActivity extends Activity {
     }
     // The WordPress homepage emits an HTTP URL for the hero image on an HTTPS page.
     // Serve the original banner locally so mixed-content blocking cannot break it.
+    private boolean isWordPressLoginPage(String url) {
+        if (url == null) return false;
+        Uri uri = Uri.parse(url);
+        String host = uri.getHost();
+        return host != null &&
+            (host.equalsIgnoreCase("makkahprintingpress.com") || host.equalsIgnoreCase("www.makkahprintingpress.com")) &&
+            "/wp-login.php".equalsIgnoreCase(uri.getPath());
+    }
+    private void showAdminLoginLogo() {
+        if (browser == null || !isWordPressLoginPage(browser.getUrl())) return;
+        String js = "(function(){try{" +
+            "var login=document.getElementById('login');if(!login)return;" +
+            "var head=login.querySelector('h1');" +
+            "if(!head){head=document.createElement('h1');login.insertBefore(head,login.firstChild);}" +
+            "var anchor=head.querySelector('a');" +
+            "if(!anchor){anchor=document.createElement('a');anchor.href='https://www.makkahprintingpress.com/';head.appendChild(anchor);}" +
+            "head.style.setProperty('display','block','important');" +
+            "head.style.setProperty('visibility','visible','important');" +
+            "head.style.setProperty('opacity','1','important');" +
+            "head.style.setProperty('height','auto','important');" +
+            "head.style.setProperty('margin','0 auto 22px','important');" +
+            "anchor.style.setProperty('display','block','important');" +
+            "anchor.style.setProperty('visibility','visible','important');" +
+            "anchor.style.setProperty('opacity','1','important');" +
+            "anchor.style.setProperty('width','220px','important');" +
+            "anchor.style.setProperty('max-width','85%','important');" +
+            "anchor.style.setProperty('height','120px','important');" +
+            "anchor.style.setProperty('margin','0 auto','important');" +
+            "anchor.style.setProperty('background-image','url(https://www.makkahprintingpress.com/__mppapp__/admin-logo.png)','important');" +
+            "anchor.style.setProperty('background-position','center','important');" +
+            "anchor.style.setProperty('background-repeat','no-repeat','important');" +
+            "anchor.style.setProperty('background-size','contain','important');" +
+            "anchor.style.setProperty('font-size','0','important');" +
+            "}catch(e){}})();";
+        browser.evaluateJavascript(js, null);
+    }
     private void refreshVisibleImages() {
         if (browser == null) return;
         String js = "(function(){try{" +
@@ -214,7 +260,7 @@ public class MainActivity extends Activity {
         logo.setImageResource(R.drawable.brand_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         stack.addView(logo, new LinearLayout.LayoutParams(dp(205), dp(205)));
-        TextView welcome = label("Welcome to", 22, Color.DKGRAY, false);
+        TextView welcome = label("Welcome to Admin Panel", 22, Color.DKGRAY, false);
         LinearLayout.LayoutParams a = new LinearLayout.LayoutParams(-1, -2);
         a.topMargin = dp(18);
         stack.addView(welcome, a);
