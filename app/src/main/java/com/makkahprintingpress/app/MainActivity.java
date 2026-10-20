@@ -157,7 +157,7 @@ public class MainActivity extends Activity {
     private void refreshVisibleImages() {
         if (browser == null) return;
         String js = "(function(){try{" +
-            "var isHome=/^(www\\\\.)?makkahprintingpress\\\\.com$/.test(location.hostname)&&location.pathname==='/';" +
+            "var isHome=(location.hostname==='www.makkahprintingpress.com'||location.hostname==='makkahprintingpress.com')&&location.pathname==='/';" +
             "document.querySelectorAll('img').forEach(function(img){" +
             "if(isHome){" +
             "var info=((img.getAttribute('alt')||'')+' '+(img.getAttribute('src')||'')+' '+(img.getAttribute('data-src')||'')).toLowerCase();" +
