@@ -5,15 +5,18 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.ActivityNotFoundException;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -68,8 +71,31 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        );
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
+        // Android 15+ enforces edge-to-edge for apps targeting SDK 35.
+        // Reserve the real system-bar insets inside our native container so the
+        // WordPress admin toolbar cannot overlap the clock, Wi-Fi or battery.
+        // Older Android versions already inset the activity content, so avoid
+        // adding duplicate padding on those devices.
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+                Insets bars = windowInsets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                );
+                if (view.getPaddingLeft() != bars.left ||
+                    view.getPaddingTop() != bars.top ||
+                    view.getPaddingRight() != bars.right ||
+                    view.getPaddingBottom() != bars.bottom) {
+                    view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                }
+                // Keep dispatching insets, including IME changes, to the WebView.
+                return windowInsets;
+            });
+        }
         setContentView(root);
         createBrowser();
         createSplash();
