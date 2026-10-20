@@ -28,11 +28,16 @@ jobs:
         run: |
           python3 -m pip install --break-system-packages Pillow
           mkdir -p app/src/main/res/drawable
+          # Prefer the full-size original instead of the 120 x 106 thumbnail.
+          curl -fL --retry 2 'https://www.makkahprintingpress.com/wp-content/uploads/2026/07/cropped-cropped-519418393_122238728378188397_9220840395751945071_n-1.jpg' -o /tmp/makkah-logo.jpg || \
           curl -fL --retry 3 'https://www.makkahprintingpress.com/wp-content/uploads/2026/07/cropped-cropped-519418393_122238728378188397_9220840395751945071_n-1-120x106.jpg' -o /tmp/makkah-logo.jpg
           python3 - <<'PY'
           from PIL import Image, ImageOps
           import os
           logo = Image.open('/tmp/makkah-logo.jpg').convert('RGBA')
+          print('SOURCE LOGO RESOLUTION:', logo.size)
+          if logo.width < 256:
+              print('WARNING: Website is providing a small logo; replace with original HD asset for best splash quality.')
           for dpi,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
               folder = 'app/src/main/res/mipmap-'+dpi
               os.makedirs(folder,exist_ok=True)
