@@ -47,17 +47,16 @@ jobs:
               canvas.save(folder+'/ic_launcher.png')
           logo.save('app/src/main/res/drawable/brand_logo.png')
           PY
-      - name: Inspect homepage hero image
+      - name: Bundle original homepage banner
         run: |
+          mkdir -p app/src/main/assets
+          curl -fL --retry 3 'https://www.makkahprintingpress.com/wp-content/uploads/2026/09/ChatGPT-Image-Sep-9-2026-03_38_02-PM.png' -o app/src/main/assets/hero-banner.png
           python3 - <<'PY'
-          import urllib.request, re, html
-          url='https://www.makkahprintingpress.com/'
-          try:
-              raw=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'}),timeout=25).read().decode('utf-8','replace')
-              print('HOMEPAGE BYTES:',len(raw))
-              for m in re.finditer(r'chatgpt.image.sep.9|03.38.02|promotional.gifts',raw,re.I):
-                  print('MATCH:',re.sub(r'\\s+',' ',raw[max(0,m.start()-400):m.end()+400])[:900])
-          except Exception as e:print('HOMEPAGE ERROR:',repr(e))
+          from PIL import Image
+          p='app/src/main/assets/hero-banner.png'
+          im=Image.open(p)
+          print('BUNDLED BANNER RESOLUTION:',im.size)
+          if im.width < 700: raise ValueError('Hero banner resolution unexpectedly small')
           PY
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
