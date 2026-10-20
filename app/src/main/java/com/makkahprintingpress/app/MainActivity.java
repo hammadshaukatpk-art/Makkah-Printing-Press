@@ -34,7 +34,7 @@ import android.webkit.ValueCallback;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private static final String HOME = "https://www.makkahprintingpress.com/";
+    private static final String HOME = "https://www.makkahprintingpress.com/wp-admin/";
     private static final int GOLD = Color.rgb(204, 159, 26);
     private static final int FILE_PICKER = 901;
     private WebView browser;
