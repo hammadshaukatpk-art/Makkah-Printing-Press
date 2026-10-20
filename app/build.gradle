@@ -3,7 +3,7 @@ android {
     namespace 'com.makkahprintingpress.app'
     compileSdk 35
     defaultConfig {
-        applicationId 'com.makkahprintingpress.app'
+        applicationId 'com.makkahprintingpress.app.admin'
         minSdk 23
         targetSdk 35
         versionCode 3
