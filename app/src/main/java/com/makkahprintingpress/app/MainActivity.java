@@ -85,8 +85,8 @@ public class MainActivity extends Activity {
         WebSettings settings = browser.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setTextZoom(100);
-        String agent = settings.getUserAgentString();
-        settings.setUserAgentString(agent.replace("; wv", "").replace("Version/4.0 ", ""));
+        String mobileUserAgent = settings.getUserAgentString();
+        settings.setUserAgentString(mobileUserAgent.replace("; wv", "").replace("Version/4.0 ", ""));
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setLoadsImagesAutomatically(true);
